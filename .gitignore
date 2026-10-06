@@ -1,0 +1,8 @@
+node_modules
+dist
+videos
+.env
+.py
+.venv
+datos/respuestas/*.log
+__pycache__

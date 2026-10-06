@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Laya y Jev: curva de fiabilidad</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #1a1c2c; overflow: hidden; }
+      body { display: flex; align-items: center; justify-content: center; }
+      canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+      #rec { position: fixed; top: 8px; left: 8px; font: 12px/1 monospace; padding: 4px 6px; color: #f4f4f4; display: none; }
+      #rec.live { display: block; background: #b13e53; }
+      #rec.info { display: block; background: #333c57; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" aria-label="Curvas de fiabilidad de Laya y Jev: para cada tramo de confianza declarada, qué parte de las respuestas acierta, frente a la diagonal de calibración perfecta"></canvas>
+    <div id="rec" aria-live="polite"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

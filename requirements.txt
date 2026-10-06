@@ -1,0 +1,6 @@
+laya==0.3.28
+datasets
+numpy
+scipy
+requests
+python-dotenv

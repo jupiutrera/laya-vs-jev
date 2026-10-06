@@ -1,0 +1,584 @@
+{
+ "conjunto": "LocalLLaMA/typed-decisions",
+ "test_casos": 400,
+ "ajuste_casos": 200,
+ "definiciones": "Curvas de fiabilidad y ECE de Jev y Laya sobre typed-decisions (test), con el reajuste hecho en 'ajuste'.\n\nDefiniciones (las mismas para los dos modelos):\n- Una decisión = una pregunta de un caso. Test: 400 casos x 5 preguntas = 2.000 decisiones.\n- Respuesta = la opción con más probabilidad. Acierto = coincide con la etiqueta del oro (gold.label).\n- Confianza = probabilidad de la respuesta, max(p). En sí/no, max(p, 1-p).\n- ECE principal = 10 tramos de igual anchura, peso por número de decisiones.\n- Reajuste = una temperatura por tipo de pregunta y nº de opciones (como agrupa Laya), ajustada\n  minimizando la log-verosimilitud en 'ajuste' (200 casos de train, nunca vistos en test).",
+ "modelos": {
+  "jev": {
+   "version": "jev-1.13.0",
+   "casos_test": 400,
+   "casos_ajuste": 200,
+   "latencia_p50_ms_por_caso": 1157.5,
+   "temperaturas_reajuste": {
+    "choice:3-5": 0.9184,
+    "noul:2": 0.743,
+    "score:3-5": 1.3433
+   },
+   "estados": {
+    "de_serie": {
+     "decisiones": 2000,
+     "exactitud": 0.734,
+     "confianza_media": 0.7517,
+     "sobreconfianza": 0.0177,
+     "brier": 0.366,
+     "ece": 0.0357,
+     "ece_ic95": [
+      0.0232,
+      0.0535
+     ],
+     "tramos": [
+      {
+       "desde": 0.0,
+       "hasta": 0.1,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.1,
+       "hasta": 0.2,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.2,
+       "hasta": 0.3,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.3,
+       "hasta": 0.4,
+       "n": 31,
+       "confianza": 0.3785,
+       "exactitud": 0.4516
+      },
+      {
+       "desde": 0.4,
+       "hasta": 0.5,
+       "n": 109,
+       "confianza": 0.4596,
+       "exactitud": 0.3761
+      },
+      {
+       "desde": 0.5,
+       "hasta": 0.6,
+       "n": 327,
+       "confianza": 0.5517,
+       "exactitud": 0.5138
+      },
+      {
+       "desde": 0.6,
+       "hasta": 0.7,
+       "n": 322,
+       "confianza": 0.6536,
+       "exactitud": 0.6335
+      },
+      {
+       "desde": 0.7,
+       "hasta": 0.8,
+       "n": 333,
+       "confianza": 0.7515,
+       "exactitud": 0.7988
+      },
+      {
+       "desde": 0.8,
+       "hasta": 0.9,
+       "n": 373,
+       "confianza": 0.85,
+       "exactitud": 0.8204
+      },
+      {
+       "desde": 0.9,
+       "hasta": 1.0,
+       "n": 505,
+       "confianza": 0.9573,
+       "exactitud": 0.9287
+      }
+     ]
+    },
+    "reajustado": {
+     "decisiones": 2000,
+     "exactitud": 0.734,
+     "confianza_media": 0.743,
+     "sobreconfianza": 0.009,
+     "brier": 0.3565,
+     "ece": 0.0324,
+     "ece_ic95": [
+      0.0218,
+      0.0526
+     ],
+     "tramos": [
+      {
+       "desde": 0.0,
+       "hasta": 0.1,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.1,
+       "hasta": 0.2,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.2,
+       "hasta": 0.3,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.3,
+       "hasta": 0.4,
+       "n": 35,
+       "confianza": 0.3763,
+       "exactitud": 0.3714
+      },
+      {
+       "desde": 0.4,
+       "hasta": 0.5,
+       "n": 133,
+       "confianza": 0.4585,
+       "exactitud": 0.4135
+      },
+      {
+       "desde": 0.5,
+       "hasta": 0.6,
+       "n": 320,
+       "confianza": 0.5525,
+       "exactitud": 0.55
+      },
+      {
+       "desde": 0.6,
+       "hasta": 0.7,
+       "n": 320,
+       "confianza": 0.6518,
+       "exactitud": 0.5938
+      },
+      {
+       "desde": 0.7,
+       "hasta": 0.8,
+       "n": 343,
+       "confianza": 0.752,
+       "exactitud": 0.7055
+      },
+      {
+       "desde": 0.8,
+       "hasta": 0.9,
+       "n": 389,
+       "confianza": 0.8533,
+       "exactitud": 0.8869
+      },
+      {
+       "desde": 0.9,
+       "hasta": 1.0,
+       "n": 460,
+       "confianza": 0.9493,
+       "exactitud": 0.9717
+      }
+     ]
+    }
+   },
+   "variantes_de_medida": {
+    "de_serie": {
+     "10_tramos": 0.0357,
+     "15_tramos": 0.0441,
+     "10_tramos_igual_masa": 0.0348,
+     "campo_confidence_del_modelo": 0.041,
+     "todas_las_opciones": 0.0213,
+     "contra_oro_blando": 0.1693,
+     "media_por_pregunta_10_tramos": 0.1174,
+     "media_por_pregunta_15_tramos": 0.1311,
+     "por_flujo": {
+      "agent_trace_observability": 0.0873,
+      "customer_service": 0.0428,
+      "invoice_processing": 0.0734,
+      "security_incidents": 0.0827
+     },
+     "por_tipo": {
+      "choice": 0.0443,
+      "noul": 0.0854,
+      "score": 0.0944
+     }
+    },
+    "reajustado": {
+     "10_tramos": 0.0324,
+     "15_tramos": 0.036,
+     "10_tramos_igual_masa": 0.0289,
+     "campo_confidence_del_modelo": 0.041,
+     "todas_las_opciones": 0.015,
+     "contra_oro_blando": 0.1606,
+     "media_por_pregunta_10_tramos": 0.1114,
+     "media_por_pregunta_15_tramos": 0.1245,
+     "por_flujo": {
+      "agent_trace_observability": 0.0997,
+      "customer_service": 0.0429,
+      "invoice_processing": 0.0787,
+      "security_incidents": 0.0173
+     },
+     "por_tipo": {
+      "choice": 0.0274,
+      "noul": 0.0681,
+      "score": 0.0485
+     }
+    }
+   }
+  },
+  "laya": {
+   "version": "convaiinnovations/laya (laya 0.3.28, CPU)",
+   "casos_test": 400,
+   "casos_ajuste": 200,
+   "latencia_p50_ms_por_caso": 9641.0,
+   "temperaturas_reajuste": {
+    "choice:3-5": 9.4137,
+    "noul:2": 49.9998,
+    "score:3-5": 2.2229
+   },
+   "estados": {
+    "crudo": {
+     "decisiones": 2000,
+     "exactitud": 0.3615,
+     "confianza_media": 0.6269,
+     "sobreconfianza": 0.2654,
+     "brier": 0.8279,
+     "ece": 0.2655,
+     "ece_ic95": [
+      0.2408,
+      0.2893
+     ],
+     "tramos": [
+      {
+       "desde": 0.0,
+       "hasta": 0.1,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.1,
+       "hasta": 0.2,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.2,
+       "hasta": 0.3,
+       "n": 14,
+       "confianza": 0.2817,
+       "exactitud": 0.2857
+      },
+      {
+       "desde": 0.3,
+       "hasta": 0.4,
+       "n": 206,
+       "confianza": 0.3589,
+       "exactitud": 0.2718
+      },
+      {
+       "desde": 0.4,
+       "hasta": 0.5,
+       "n": 275,
+       "confianza": 0.447,
+       "exactitud": 0.2655
+      },
+      {
+       "desde": 0.5,
+       "hasta": 0.6,
+       "n": 455,
+       "confianza": 0.5464,
+       "exactitud": 0.3319
+      },
+      {
+       "desde": 0.6,
+       "hasta": 0.7,
+       "n": 358,
+       "confianza": 0.6473,
+       "exactitud": 0.4302
+      },
+      {
+       "desde": 0.7,
+       "hasta": 0.8,
+       "n": 306,
+       "confianza": 0.7473,
+       "exactitud": 0.4346
+      },
+      {
+       "desde": 0.8,
+       "hasta": 0.9,
+       "n": 220,
+       "confianza": 0.8473,
+       "exactitud": 0.3909
+      },
+      {
+       "desde": 0.9,
+       "hasta": 1.0,
+       "n": 166,
+       "confianza": 0.9496,
+       "exactitud": 0.3976
+      }
+     ]
+    },
+    "de_serie": {
+     "decisiones": 2000,
+     "exactitud": 0.3615,
+     "confianza_media": 0.5361,
+     "sobreconfianza": 0.1746,
+     "brier": 0.7497,
+     "ece": 0.1746,
+     "ece_ic95": [
+      0.1519,
+      0.1989
+     ],
+     "tramos": [
+      {
+       "desde": 0.0,
+       "hasta": 0.1,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.1,
+       "hasta": 0.2,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.2,
+       "hasta": 0.3,
+       "n": 69,
+       "confianza": 0.2783,
+       "exactitud": 0.2029
+      },
+      {
+       "desde": 0.3,
+       "hasta": 0.4,
+       "n": 357,
+       "confianza": 0.3549,
+       "exactitud": 0.2745
+      },
+      {
+       "desde": 0.4,
+       "hasta": 0.5,
+       "n": 376,
+       "confianza": 0.4519,
+       "exactitud": 0.2819
+      },
+      {
+       "desde": 0.5,
+       "hasta": 0.6,
+       "n": 615,
+       "confianza": 0.5462,
+       "exactitud": 0.4293
+      },
+      {
+       "desde": 0.6,
+       "hasta": 0.7,
+       "n": 276,
+       "confianza": 0.6435,
+       "exactitud": 0.4275
+      },
+      {
+       "desde": 0.7,
+       "hasta": 0.8,
+       "n": 191,
+       "confianza": 0.7495,
+       "exactitud": 0.3927
+      },
+      {
+       "desde": 0.8,
+       "hasta": 0.9,
+       "n": 92,
+       "confianza": 0.8379,
+       "exactitud": 0.3913
+      },
+      {
+       "desde": 0.9,
+       "hasta": 1.0,
+       "n": 24,
+       "confianza": 0.9453,
+       "exactitud": 0.5
+      }
+     ]
+    },
+    "reajustado": {
+     "decisiones": 2000,
+     "exactitud": 0.3615,
+     "confianza_media": 0.3929,
+     "sobreconfianza": 0.0314,
+     "brier": 0.6801,
+     "ece": 0.0346,
+     "ece_ic95": [
+      0.0223,
+      0.0583
+     ],
+     "tramos": [
+      {
+       "desde": 0.0,
+       "hasta": 0.1,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.1,
+       "hasta": 0.2,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.2,
+       "hasta": 0.3,
+       "n": 592,
+       "confianza": 0.2667,
+       "exactitud": 0.272
+      },
+      {
+       "desde": 0.3,
+       "hasta": 0.4,
+       "n": 461,
+       "confianza": 0.3439,
+       "exactitud": 0.3275
+      },
+      {
+       "desde": 0.4,
+       "hasta": 0.5,
+       "n": 238,
+       "confianza": 0.4415,
+       "exactitud": 0.3235
+      },
+      {
+       "desde": 0.5,
+       "hasta": 0.6,
+       "n": 696,
+       "confianza": 0.5119,
+       "exactitud": 0.4698
+      },
+      {
+       "desde": 0.6,
+       "hasta": 0.7,
+       "n": 13,
+       "confianza": 0.6246,
+       "exactitud": 0.5385
+      },
+      {
+       "desde": 0.7,
+       "hasta": 0.8,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.8,
+       "hasta": 0.9,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.9,
+       "hasta": 1.0,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      }
+     ]
+    }
+   },
+   "variantes_de_medida": {
+    "crudo": {
+     "10_tramos": 0.2655,
+     "15_tramos": 0.2654,
+     "10_tramos_igual_masa": 0.2654,
+     "campo_confidence_del_modelo": 0.1552,
+     "todas_las_opciones": 0.1546,
+     "contra_oro_blando": 0.2787,
+     "media_por_pregunta_10_tramos": 0.2893,
+     "media_por_pregunta_15_tramos": 0.2946,
+     "por_flujo": {
+      "agent_trace_observability": 0.2996,
+      "customer_service": 0.1839,
+      "invoice_processing": 0.3016,
+      "security_incidents": 0.3119
+     },
+     "por_tipo": {
+      "choice": 0.3071,
+      "noul": 0.2429,
+      "score": 0.2597
+     }
+    },
+    "de_serie": {
+     "10_tramos": 0.1746,
+     "15_tramos": 0.1746,
+     "10_tramos_igual_masa": 0.1746,
+     "campo_confidence_del_modelo": 0.1552,
+     "todas_las_opciones": 0.0989,
+     "contra_oro_blando": 0.1874,
+     "media_por_pregunta_10_tramos": 0.2184,
+     "media_por_pregunta_15_tramos": 0.2263,
+     "por_flujo": {
+      "agent_trace_observability": 0.1986,
+      "customer_service": 0.0992,
+      "invoice_processing": 0.2281,
+      "security_incidents": 0.2291
+     },
+     "por_tipo": {
+      "choice": 0.1675,
+      "noul": 0.1588,
+      "score": 0.1943
+     }
+    },
+    "reajustado": {
+     "10_tramos": 0.0346,
+     "15_tramos": 0.0568,
+     "10_tramos_igual_masa": 0.0844,
+     "campo_confidence_del_modelo": 0.1552,
+     "todas_las_opciones": 0.016,
+     "contra_oro_blando": 0.0442,
+     "media_por_pregunta_10_tramos": 0.1403,
+     "media_por_pregunta_15_tramos": 0.1454,
+     "por_flujo": {
+      "agent_trace_observability": 0.0597,
+      "customer_service": 0.0461,
+      "invoice_processing": 0.1468,
+      "security_incidents": 0.0936
+     },
+     "por_tipo": {
+      "choice": 0.0204,
+      "noul": 0.0204,
+      "score": 0.0864
+     }
+    }
+   }
+  }
+ },
+ "publicado": {
+  "nota": "Cifras de terceros, no medidas aquí.",
+  "laya": {
+   "ece_sin_ajustar": 0.466,
+   "ece_reajustado": 0.081,
+   "fuentes": [
+    "https://huggingface.co/convaiinnovations/laya",
+    "https://www.eesel.ai/blog/laya-ai-review"
+   ]
+  },
+  "jev": [
+   {
+    "ece": 0.246,
+    "fuente": "https://www.eesel.ai/blog/laya-ai-review (comparativa Laya vs Jev)"
+   },
+   {
+    "ece": 0.144,
+    "fuente": "https://huggingface.co/datasets/LocalLLaMA/typed-decisions (Jev 1.13.0, test, zero-shot)"
+   }
+  ]
+ }
+}
