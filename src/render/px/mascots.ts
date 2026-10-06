@@ -5,12 +5,14 @@ import { P } from './palette';
 // la chispa. Es un monigote genérico, no el logotipo de nadie.
 // Se dibujan a escala x3, con el centro de la base en el punto que se indica.
 
-export type MascotKind = 'jev' | 'laya';
+export type MascotKind = 'jev' | 'laya' | 'laya_td';
 export type MascotState = 'idle' | 'reading' | 'stamping' | 'error';
 
 // a contorno, c cuerpo, e sombra del cuerpo, b chispa / agua, d blanco
 const JEV_COLORS: Record<string, string> = { a: '#0b222e', b: '#fdd17a', c: '#ff7331', d: '#ffffff', e: '#c44a16' };
 const LAYA_COLORS: Record<string, string> = { a: P.night, b: P.cyan, c: P.blue, d: P.parchment, e: P.navy };
+// Laya especializada: la misma, en cian
+const LAYA_TD_COLORS: Record<string, string> = { a: P.night, b: P.parchment, c: P.cyan, d: P.parchment, e: P.blue };
 
 // Cuerpo sin ojos ni boca (se dibujan aparte para animarlos). Filas 0-4: antena; 5-11: cabeza
 // con visera en las filas 7-9; 12-14: base; la fila 15 (propulsión o salpicadura) se anima aparte.
@@ -50,8 +52,8 @@ const LAYA_BODY = [
   '....aaaa....',
 ];
 
-const BODIES: Record<MascotKind, string[]> = { jev: JEV_BODY, laya: LAYA_BODY };
-const COLORS: Record<MascotKind, Record<string, string>> = { jev: JEV_COLORS, laya: LAYA_COLORS };
+const BODIES: Record<MascotKind, string[]> = { jev: JEV_BODY, laya: LAYA_BODY, laya_td: LAYA_BODY };
+const COLORS: Record<MascotKind, Record<string, string>> = { jev: JEV_COLORS, laya: LAYA_COLORS, laya_td: LAYA_TD_COLORS };
 
 export interface MascotOpts {
   state: MascotState;

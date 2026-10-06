@@ -1,6 +1,6 @@
-"""Curvas de fiabilidad y ECE de Jev y Laya sobre typed-decisions (test), con el reajuste hecho en 'ajuste'.
+"""Curvas de fiabilidad y ECE de Jev, Laya y Laya especializada sobre typed-decisions (test), con el reajuste hecho en 'ajuste'.
 
-Definiciones (las mismas para los dos modelos):
+Definiciones (las mismas para todos los modelos):
 - Una decisión = una pregunta de un caso. Test: 400 casos x 5 preguntas = 2.000 decisiones.
 - Respuesta = la opción con más probabilidad. Acierto = coincide con la etiqueta del oro (gold.label).
 - Confianza = probabilidad de la respuesta, max(p). En sí/no, max(p, 1-p).
@@ -217,12 +217,16 @@ def main():
            "definiciones": __doc__.split("Uso:")[0].strip(), "modelos": {}}
     medidas = {}
 
-    for nombre, suelo in (("jev", SUELO_JEV), ("laya", SUELO)):
-        rt, ra = leer(d / "respuestas" / f"{nombre}-test.jsonl"), leer(d / "respuestas" / f"{nombre}-ajuste.jsonl")
+    # clave en resultados.json -> prefijo de los archivos de respuestas
+    modelos = [("jev", "jev", SUELO_JEV), ("laya", "laya", SUELO), ("laya_td", "laya-td", SUELO)]
+    for nombre, archivo, suelo in modelos:
+        if not all((d / "respuestas" / f"{archivo}-{c}.jsonl").exists() for c in ("test", "ajuste")):
+            continue
+        rt, ra = leer(d / "respuestas" / f"{archivo}-test.jsonl"), leer(d / "respuestas" / f"{archivo}-ajuste.jsonl")
         ft, fa = decisiones(test, rt, suelo), decisiones(ajuste, ra, suelo)
         estados = {}
-        if nombre == "laya":
-            ts = json.loads((d / "respuestas" / "laya-temperaturas.json").read_text())
+        if nombre.startswith("laya"):
+            ts = json.loads((d / "respuestas" / f"{archivo}-temperaturas.json").read_text())
             ft_crudo, fa_crudo = deshacer_serie_laya(ft, ts), deshacer_serie_laya(fa, ts)
             temps = ajustar_temperaturas(fa_crudo)
             estados["crudo"] = ft_crudo

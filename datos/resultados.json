@@ -2,7 +2,7 @@
  "conjunto": "LocalLLaMA/typed-decisions",
  "test_casos": 400,
  "ajuste_casos": 200,
- "definiciones": "Curvas de fiabilidad y ECE de Jev y Laya sobre typed-decisions (test), con el reajuste hecho en 'ajuste'.\n\nDefiniciones (las mismas para los dos modelos):\n- Una decisión = una pregunta de un caso. Test: 400 casos x 5 preguntas = 2.000 decisiones.\n- Respuesta = la opción con más probabilidad. Acierto = coincide con la etiqueta del oro (gold.label).\n- Confianza = probabilidad de la respuesta, max(p). En sí/no, max(p, 1-p).\n- ECE principal = 10 tramos de igual anchura, peso por número de decisiones.\n- Reajuste = una temperatura por tipo de pregunta y nº de opciones (como agrupa Laya), ajustada\n  minimizando la log-verosimilitud en 'ajuste' (200 casos de train, nunca vistos en test).",
+ "definiciones": "Curvas de fiabilidad y ECE de Jev, Laya y Laya especializada sobre typed-decisions (test), con el reajuste hecho en 'ajuste'.\n\nDefiniciones (las mismas para todos los modelos):\n- Una decisión = una pregunta de un caso. Test: 400 casos x 5 preguntas = 2.000 decisiones.\n- Respuesta = la opción con más probabilidad. Acierto = coincide con la etiqueta del oro (gold.label).\n- Confianza = probabilidad de la respuesta, max(p). En sí/no, max(p, 1-p).\n- ECE principal = 10 tramos de igual anchura, peso por número de decisiones.\n- Reajuste = una temperatura por tipo de pregunta y nº de opciones (como agrupa Laya), ajustada\n  minimizando la log-verosimilitud en 'ajuste' (200 casos de train, nunca vistos en test).",
  "modelos": {
   "jev": {
    "version": "jev-1.13.0",
@@ -555,6 +555,336 @@
       "choice": 0.0204,
       "noul": 0.0204,
       "score": 0.0864
+     }
+    }
+   }
+  },
+  "laya_td": {
+   "version": "convaiinnovations/laya-typed-decisions (laya 0.3.28, CPU)",
+   "casos_test": 400,
+   "casos_ajuste": 200,
+   "latencia_p50_ms_por_caso": 9408.8,
+   "temperaturas_reajuste": {
+    "choice:3-5": 0.3351,
+    "noul:2": 0.3234,
+    "score:3-5": 0.399
+   },
+   "estados": {
+    "crudo": {
+     "decisiones": 2000,
+     "exactitud": 0.766,
+     "confianza_media": 0.6382,
+     "sobreconfianza": -0.1278,
+     "brier": 0.3483,
+     "ece": 0.1278,
+     "ece_ic95": [
+      0.1091,
+      0.1453
+     ],
+     "tramos": [
+      {
+       "desde": 0.0,
+       "hasta": 0.1,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.1,
+       "hasta": 0.2,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.2,
+       "hasta": 0.3,
+       "n": 1,
+       "confianza": 0.286,
+       "exactitud": 1.0
+      },
+      {
+       "desde": 0.3,
+       "hasta": 0.4,
+       "n": 76,
+       "confianza": 0.3726,
+       "exactitud": 0.4868
+      },
+      {
+       "desde": 0.4,
+       "hasta": 0.5,
+       "n": 367,
+       "confianza": 0.4593,
+       "exactitud": 0.5341
+      },
+      {
+       "desde": 0.5,
+       "hasta": 0.6,
+       "n": 569,
+       "confianza": 0.5463,
+       "exactitud": 0.6801
+      },
+      {
+       "desde": 0.6,
+       "hasta": 0.7,
+       "n": 407,
+       "confianza": 0.646,
+       "exactitud": 0.8649
+      },
+      {
+       "desde": 0.7,
+       "hasta": 0.8,
+       "n": 162,
+       "confianza": 0.7415,
+       "exactitud": 0.8951
+      },
+      {
+       "desde": 0.8,
+       "hasta": 0.9,
+       "n": 134,
+       "confianza": 0.8498,
+       "exactitud": 0.9776
+      },
+      {
+       "desde": 0.9,
+       "hasta": 1.0,
+       "n": 284,
+       "confianza": 0.956,
+       "exactitud": 0.9965
+      }
+     ]
+    },
+    "de_serie": {
+     "decisiones": 2000,
+     "exactitud": 0.766,
+     "confianza_media": 0.5528,
+     "sobreconfianza": -0.2132,
+     "brier": 0.3996,
+     "ece": 0.2132,
+     "ece_ic95": [
+      0.1943,
+      0.2318
+     ],
+     "tramos": [
+      {
+       "desde": 0.0,
+       "hasta": 0.1,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.1,
+       "hasta": 0.2,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.2,
+       "hasta": 0.3,
+       "n": 4,
+       "confianza": 0.2799,
+       "exactitud": 0.5
+      },
+      {
+       "desde": 0.3,
+       "hasta": 0.4,
+       "n": 250,
+       "confianza": 0.3679,
+       "exactitud": 0.516
+      },
+      {
+       "desde": 0.4,
+       "hasta": 0.5,
+       "n": 600,
+       "confianza": 0.45,
+       "exactitud": 0.6567
+      },
+      {
+       "desde": 0.5,
+       "hasta": 0.6,
+       "n": 557,
+       "confianza": 0.5436,
+       "exactitud": 0.7882
+      },
+      {
+       "desde": 0.6,
+       "hasta": 0.7,
+       "n": 233,
+       "confianza": 0.645,
+       "exactitud": 0.9142
+      },
+      {
+       "desde": 0.7,
+       "hasta": 0.8,
+       "n": 150,
+       "confianza": 0.748,
+       "exactitud": 1.0
+      },
+      {
+       "desde": 0.8,
+       "hasta": 0.9,
+       "n": 190,
+       "confianza": 0.8551,
+       "exactitud": 0.9947
+      },
+      {
+       "desde": 0.9,
+       "hasta": 1.0,
+       "n": 16,
+       "confianza": 0.9161,
+       "exactitud": 1.0
+      }
+     ]
+    },
+    "reajustado": {
+     "decisiones": 2000,
+     "exactitud": 0.766,
+     "confianza_media": 0.8267,
+     "sobreconfianza": 0.0607,
+     "brier": 0.3239,
+     "ece": 0.0611,
+     "ece_ic95": [
+      0.0457,
+      0.0803
+     ],
+     "tramos": [
+      {
+       "desde": 0.0,
+       "hasta": 0.1,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.1,
+       "hasta": 0.2,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.2,
+       "hasta": 0.3,
+       "n": 0,
+       "confianza": null,
+       "exactitud": null
+      },
+      {
+       "desde": 0.3,
+       "hasta": 0.4,
+       "n": 7,
+       "confianza": 0.3692,
+       "exactitud": 0.4286
+      },
+      {
+       "desde": 0.4,
+       "hasta": 0.5,
+       "n": 53,
+       "confianza": 0.4707,
+       "exactitud": 0.3774
+      },
+      {
+       "desde": 0.5,
+       "hasta": 0.6,
+       "n": 185,
+       "confianza": 0.5506,
+       "exactitud": 0.5189
+      },
+      {
+       "desde": 0.6,
+       "hasta": 0.7,
+       "n": 224,
+       "confianza": 0.649,
+       "exactitud": 0.6027
+      },
+      {
+       "desde": 0.7,
+       "hasta": 0.8,
+       "n": 296,
+       "confianza": 0.7555,
+       "exactitud": 0.5946
+      },
+      {
+       "desde": 0.8,
+       "hasta": 0.9,
+       "n": 380,
+       "confianza": 0.853,
+       "exactitud": 0.7921
+      },
+      {
+       "desde": 0.9,
+       "hasta": 1.0,
+       "n": 855,
+       "confianza": 0.9717,
+       "exactitud": 0.9368
+      }
+     ]
+    }
+   },
+   "variantes_de_medida": {
+    "crudo": {
+     "10_tramos": 0.1278,
+     "15_tramos": 0.1278,
+     "10_tramos_igual_masa": 0.1278,
+     "campo_confidence_del_modelo": 0.4161,
+     "todas_las_opciones": 0.0694,
+     "contra_oro_blando": 0.0349,
+     "media_por_pregunta_10_tramos": 0.146,
+     "media_por_pregunta_15_tramos": 0.1475,
+     "por_flujo": {
+      "agent_trace_observability": 0.1494,
+      "customer_service": 0.1177,
+      "invoice_processing": 0.0873,
+      "security_incidents": 0.1707
+     },
+     "por_tipo": {
+      "choice": 0.1228,
+      "noul": 0.1042,
+      "score": 0.1492
+     }
+    },
+    "de_serie": {
+     "10_tramos": 0.2132,
+     "15_tramos": 0.2132,
+     "10_tramos_igual_masa": 0.2132,
+     "campo_confidence_del_modelo": 0.4161,
+     "todas_las_opciones": 0.1002,
+     "contra_oro_blando": 0.0519,
+     "media_por_pregunta_10_tramos": 0.2182,
+     "media_por_pregunta_15_tramos": 0.2235,
+     "por_flujo": {
+      "agent_trace_observability": 0.2293,
+      "customer_service": 0.2098,
+      "invoice_processing": 0.1649,
+      "security_incidents": 0.2489
+     },
+     "por_tipo": {
+      "choice": 0.2548,
+      "noul": 0.1921,
+      "score": 0.1979
+     }
+    },
+    "reajustado": {
+     "10_tramos": 0.0611,
+     "15_tramos": 0.0621,
+     "10_tramos_igual_masa": 0.0607,
+     "campo_confidence_del_modelo": 0.4161,
+     "todas_las_opciones": 0.0337,
+     "contra_oro_blando": 0.2224,
+     "media_por_pregunta_10_tramos": 0.0926,
+     "media_por_pregunta_15_tramos": 0.1044,
+     "por_flujo": {
+      "agent_trace_observability": 0.0779,
+      "customer_service": 0.0775,
+      "invoice_processing": 0.0659,
+      "security_incidents": 0.0505
+     },
+     "por_tipo": {
+      "choice": 0.1119,
+      "noul": 0.0281,
+      "score": 0.0494
      }
     }
    }

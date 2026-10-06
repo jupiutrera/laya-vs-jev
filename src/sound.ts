@@ -1,7 +1,8 @@
 // Sonido sintetizado con Web Audio: sin archivos. Cada actor (carril) suena en su lado del estéreo
 // (0 a la izquierda, 1 a la derecha) y a volumen moderado para que los dos a la vez no saturen.
 
-const PAN = [-0.6, 0.6];
+// Laya a la izquierda, Laya especializada en el centro, Jev a la derecha
+const PAN = [-0.6, 0, 0.6];
 const BPM = [96, 112, 132, 156];
 // Bajo y arpegio en la menor; ocho corcheas por compás
 const BASS = [45, 45, 52, 52, 43, 43, 50, 50];

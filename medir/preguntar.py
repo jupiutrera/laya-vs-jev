@@ -1,6 +1,7 @@
 """Hace la misma petición (state + las cinco preguntas del caso) a Jev y a Laya y guarda la respuesta entera.
 
-Uso:  python medir/preguntar.py jev|laya [test|ajuste ...] [--max N]
+Uso:  python medir/preguntar.py jev|laya|laya-td [test|ajuste ...] [--max N]
+      laya = convaiinnovations/laya (general); laya-td = convaiinnovations/laya-typed-decisions (especializada)
 Reanudable: los casos que ya están en datos/respuestas/<modelo>-<conjunto>.jsonl se saltan.
 """
 import argparse
@@ -58,9 +59,10 @@ class Jev:
 class Laya:
     hilos = 1
 
-    def __init__(self):
+    def __init__(self, repo: str = "convaiinnovations/laya"):
         import laya
-        self.agente = laya.load("convaiinnovations/laya")
+        self.repo = repo
+        self.agente = laya.load(repo)
         self.version = getattr(laya, "__version__", "?")
 
     def temperaturas(self) -> dict:
@@ -70,21 +72,21 @@ class Laya:
         t0 = time.perf_counter()
         r = self.agente.predict(caso["state"], caso["questions"])
         ms = (time.perf_counter() - t0) * 1000
-        return {"id": caso["id"], "modelo": f"convaiinnovations/laya (laya {self.version}, CPU)", "ms": round(ms, 1),
+        return {"id": caso["id"], "modelo": f"{self.repo} (laya {self.version}, CPU)", "ms": round(ms, 1),
                 "answers": r["answers"]}
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("modelo", choices=["jev", "laya"])
+    ap.add_argument("modelo", choices=["jev", "laya", "laya-td"])
     ap.add_argument("conjuntos", nargs="*", default=["test", "ajuste"])
     ap.add_argument("--max", type=int, default=0, help="como mucho N casos por conjunto (prueba de humo)")
     a = ap.parse_args()
 
-    cliente = Jev() if a.modelo == "jev" else Laya()
+    cliente = Jev() if a.modelo == "jev" else Laya() if a.modelo == "laya" else Laya("convaiinnovations/laya-typed-decisions")
     (RAIZ / "datos" / "respuestas").mkdir(parents=True, exist_ok=True)
-    if a.modelo == "laya":
-        with open(RAIZ / "datos" / "respuestas" / "laya-temperaturas.json", "w", encoding="utf-8") as f:
+    if a.modelo.startswith("laya"):
+        with open(RAIZ / "datos" / "respuestas" / f"{a.modelo}-temperaturas.json", "w", encoding="utf-8") as f:
             json.dump(cliente.temperaturas(), f, indent=1)
 
     for nombre in a.conjuntos:

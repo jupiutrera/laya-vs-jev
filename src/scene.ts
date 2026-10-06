@@ -9,11 +9,14 @@ import { LH, LW, P } from './render/px/palette';
 //   Verde con marca = acertó.  Roja con cruz = falló.
 //   Prometida y fallada = roja con borde amarillo: ahí se ve lo que promete de más.
 // Todo sale de las respuestas reales (src/data/medidas.json); la cuadrícula es la proporción real
-// escalada a 100 y debajo va el número real de respuestas.
+// escalada a 100 y debajo va el número real de respuestas. Funciona con dos modelos (Laya y Jev) o
+// con tres si hay datos de Laya especializada.
 
-const MODELOS: Modelo[] = ['laya', 'jev'];
-const NOMBRE: Record<Modelo, string> = { laya: 'LAYA', jev: 'JEV' };
-const COLOR: Record<Modelo, string> = { laya: P.blue, jev: P.fire };
+const ORDEN: Modelo[] = ['laya', 'laya_td', 'jev'];
+const NOMBRE: Record<Modelo, string> = { laya: 'LAYA', laya_td: 'LAYA', jev: 'JEV' };
+const APELLIDO: Record<Modelo, string> = { laya: 'GENERAL', laya_td: 'ESPECIALIZADA', jev: 'GENERAL' };
+const COLOR: Record<Modelo, string> = { laya: P.blue, laya_td: P.cyan, jev: P.fire };
+const LANE: Record<Modelo, number> = { laya: 0, laya_td: 1, jev: 2 };
 
 /** Niveles de seguridad declarada, de más a menos. */
 const NIVELES = [
@@ -23,6 +26,7 @@ const NIVELES = [
 ];
 
 const pct = (x: number) => `${Math.round(x * 100)} %`;
+const de100 = (x: number) => Math.round(x * 100);
 const fmt3 = (x: number) => x.toFixed(3).replace('.', ',');
 const miles = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
@@ -47,19 +51,21 @@ function resumen(s: Secuencia, desde = 0, hasta = 1.01): Tramo {
   return { n, dice: n ? dice / n : 0, acierta: n ? ok / n : 0 };
 }
 
-const veredicto = (a: Tramo) =>
-  Math.abs(a.dice - a.acierta) < 0.06 ? '✓ CUMPLE LO QUE PROMETE' : a.dice > a.acierta ? '✗ PROMETE DE MÁS' : 'PROMETE DE MENOS';
+const cumple = (a: Tramo) => Math.abs(a.dice - a.acierta) < 0.06;
+/** Verde si cumple; rojo (error) si promete de más; neutro si promete de menos. */
+const colorAcierto = (a: Tramo) => (cumple(a) ? P.green : a.dice > a.acierta ? P.red : P.parchment);
+const veredicto = (a: Tramo) => (cumple(a) ? '✓ CUMPLE LO QUE PROMETE' : a.dice > a.acierta ? '✗ PROMETE DE MÁS' : 'PROMETE DE MENOS');
 
 // ---- Pantallas y tiempos (s) ----
 const PANTALLAS = [
   { id: 'pregunta', dur: 8 },
-  { id: 'prueba', dur: 5 },
+  { id: 'prueba', dur: 6.5 },
   { id: 'nivel0', dur: 11 },
   { id: 'nivel1', dur: 9.5 },
   { id: 'nivel2', dur: 9.5 },
   { id: 'arreglo', dur: 12 },
   { id: 'noticia', dur: 12 },
-  { id: 'repaso', dur: 10 },
+  { id: 'repaso', dur: 11 },
   { id: 'final', dur: Infinity },
 ] as const;
 type Id = (typeof PANTALLAS)[number]['id'];
@@ -155,20 +161,15 @@ function cuadricula(
 }
 
 /** Una casilla suelta para las leyendas. */
-function muestra(ctx: CanvasRenderingContext2D, x: number, y: number, tipo: 'prometida' | 'acierta' | 'falla') {
-  if (tipo === 'prometida') cuadricula1(ctx, x, y, P.slate, true);
-  else cuadricula1(ctx, x, y, tipo === 'acierta' ? P.green : P.red, tipo === 'falla');
-}
-function cuadricula1(ctx: CanvasRenderingContext2D, x: number, y: number, fill: string, yellow: boolean) {
+function muestra(ctx: CanvasRenderingContext2D, x: number, y: number, fill: string, amarillo: boolean) {
   ctx.fillStyle = fill;
   ctx.fillRect(x, y, 8, 8);
-  if (yellow) {
-    ctx.fillStyle = P.yellow;
-    ctx.fillRect(x, y, 8, 1);
-    ctx.fillRect(x, y + 7, 8, 1);
-    ctx.fillRect(x, y, 1, 8);
-    ctx.fillRect(x + 7, y, 1, 8);
-  }
+  if (!amarillo) return;
+  ctx.fillStyle = P.yellow;
+  ctx.fillRect(x, y, 8, 1);
+  ctx.fillRect(x, y + 7, 8, 1);
+  ctx.fillRect(x, y, 1, 8);
+  ctx.fillRect(x + 7, y, 1, 8);
 }
 
 export class Escena {
@@ -177,17 +178,27 @@ export class Escena {
   done = false;
   private last: Id | '' = '';
   private ticked = 0;
-  private nivel: Record<Modelo, Tramo[]>;
-  private media: Record<Modelo, Record<'de_serie' | 'reajustado', Tramo>>;
+  private modelos: Modelo[];
+  private nivel: Partial<Record<Modelo, Tramo[]>> = {};
+  private media: Partial<Record<Modelo, Record<'de_serie' | 'reajustado', Tramo>>> = {};
 
   constructor(private d: Datos, private ev: Eventos) {
-    const sec = (m: Modelo, e: Estado) => d.secuencias[m][e]!;
-    const niveles = (m: Modelo) => NIVELES.map((n) => resumen(sec(m, 'de_serie'), n.desde, n.hasta));
-    this.nivel = { laya: niveles('laya'), jev: niveles('jev') };
-    this.media = {
-      laya: { de_serie: resumen(sec('laya', 'de_serie')), reajustado: resumen(sec('laya', 'reajustado')) },
-      jev: { de_serie: resumen(sec('jev', 'de_serie')), reajustado: resumen(sec('jev', 'reajustado')) },
-    };
+    this.modelos = ORDEN.filter((m) => d.secuencias[m]?.de_serie && d.secuencias[m]?.reajustado);
+    for (const m of this.modelos) {
+      const sec = (e: Estado) => d.secuencias[m]![e]!;
+      this.nivel[m] = NIVELES.map((n) => resumen(sec('de_serie'), n.desde, n.hasta));
+      this.media[m] = { de_serie: resumen(sec('de_serie')), reajustado: resumen(sec('reajustado')) };
+    }
+  }
+
+  private get lays() {
+    return this.modelos.filter((m) => m !== 'jev');
+  }
+
+  /** Centro de la columna de cada modelo. */
+  private cx(m: Modelo) {
+    const w = LW / this.modelos.length;
+    return Math.round(w * this.modelos.indexOf(m) + w / 2);
   }
 
   start() {
@@ -226,9 +237,11 @@ export class Escena {
       const k = this.llenas(s.t, s.id === 'arreglo' ? 4.5 : T_LLENADO);
       if (k >= this.ticked + 5) {
         this.ticked = k;
-        if (nivel >= 0)
-          MODELOS.forEach((m, lane) => this.ev.tick(lane, k > Math.round(this.nivel[m][nivel].acierta * 100) ? 1 : 0));
-        else this.ev.tick(0, k > Math.round(this.media.laya.reajustado.acierta * 100) ? 1 : 0);
+        const quienes = nivel >= 0 ? this.modelos : this.lays;
+        for (const m of quienes) {
+          const a = nivel >= 0 ? this.nivel[m]![nivel] : this.media[m]!.reajustado;
+          if (a.n) this.ev.tick(LANE[m], k > de100(a.acierta) ? 1 : 0);
+        }
       }
     }
     if (s.id === 'arreglo' && s.t >= 2 && this.ticked === 0) {
@@ -256,14 +269,19 @@ export class Escena {
     if (s.t < 0.25) cover(ctx, 1 - easeOut(s.t / 0.25));
   }
 
-  private mascota(ctx: CanvasRenderingContext2D, m: Modelo, cx: number, bottom: number, state: MascotState = 'idle', since = 1) {
-    drawMascot(ctx, m, cx, bottom, { state, t: this.t + (m === 'jev' ? 0.7 : 0), since, stressed: false, sealColor: P.yellow });
+  private mascota(ctx: CanvasRenderingContext2D, m: Modelo, cx: number, bottom: number, state: MascotState = 'idle', since = 1, scale = 3) {
+    drawMascot(ctx, m, cx, bottom, { state, t: this.t + LANE[m] * 0.7, since, stressed: false, sealColor: P.yellow, scale });
+  }
+
+  /** Nombre del modelo en dos líneas: "LAYA" grande y "ESPECIALIZADA" pequeño debajo. */
+  private nombre(ctx: CanvasRenderingContext2D, m: Modelo, cx: number, y: number, scale = 2) {
+    text(ctx, NOMBRE[m], cx, y, COLOR[m], { scale, outline: P.night, align: 'center' });
+    if (this.lays.length > 1 || m !== 'jev') text(ctx, APELLIDO[m], cx, y + 9 * scale + 2, COLOR[m], { outline: P.night, align: 'center' });
   }
 
   private portada(ctx: CanvasRenderingContext2D) {
     bloque(ctx, 'SI UNA IA DICE QUE ESTÁ SEGURA AL 90 %, ¿ACIERTA 9 DE CADA 10?', 50, P.parchment, 3, LW - 60);
-    this.mascota(ctx, 'laya', 190, 234);
-    this.mascota(ctx, 'jev', 290, 234);
+    this.modelos.forEach((m) => this.mascota(ctx, m, this.cx(m), 234));
     if (stepFrame(performance.now() / 1000, 2, 2)) text(ctx, 'PULSA ESPACIO', LW / 2, 150, P.yellow, { scale: 2, outline: P.night, align: 'center' });
   }
 
@@ -276,13 +294,13 @@ export class Escena {
       text(ctx, 'ESTÁ PROMETIENDO', 300, 70, P.parchment, { outline: P.night });
       text(ctx, 'QUE 90 DE 100', 300, 82, P.yellow, { scale: 2, outline: P.night });
       text(ctx, 'LE SALDRÁN BIEN', 300, 100, P.parchment, { outline: P.night });
-      muestra(ctx, 34, 70, 'prometida');
+      muestra(ctx, 34, 70, P.slate, true);
       text(ctx, 'PROMETIDA', 46, 71, P.yellow, { outline: P.night });
     }
     if (t > 4.2) {
-      muestra(ctx, 34, 86, 'acierta');
+      muestra(ctx, 34, 86, P.green, false);
       text(ctx, 'ACIERTA', 46, 87, P.green, { outline: P.night });
-      muestra(ctx, 34, 102, 'falla');
+      muestra(ctx, 34, 102, P.red, true);
       text(ctx, 'FALLA', 46, 103, P.red, { outline: P.night });
     }
     if (t > 5) bloque(ctx, '¿LO CUMPLE?', 158, P.yellow, 3);
@@ -292,71 +310,102 @@ export class Escena {
   // 2. La prueba
   private prueba(ctx: CanvasRenderingContext2D, t: number) {
     const N = this.d.resultados.modelos.jev.estados.de_serie!.decisiones;
-    bloque(ctx, 'LO HEMOS COMPROBADO CON DOS IA', 30, P.parchment, 2);
-    bloque(ctx, `LAS MISMAS ${miles(N)} PREGUNTAS PARA LAS DOS`, 54, P.stoneLight, 2);
+    const n = this.modelos.length;
+    bloque(ctx, `LO HEMOS COMPROBADO CON ${n === 3 ? 'TRES' : 'DOS'} IA`, 24, P.parchment, 2);
+    bloque(ctx, `LAS MISMAS ${miles(N)} PREGUNTAS`, 46, P.stoneLight, 2);
     const k = easeOut(Math.min(1, t / 0.6));
-    MODELOS.forEach((m, i) => {
-      const cx = i === 0 ? 140 : 340;
-      text(ctx, NOMBRE[m], cx, 90, COLOR[m], { scale: 3, outline: P.night, align: 'center' });
-      this.mascota(ctx, m, cx, 234 - Math.round((1 - k) * 20), t > 1 && t < 4 ? 'reading' : 'idle');
+    this.modelos.forEach((m) => {
+      this.nombre(ctx, m, this.cx(m), 80);
+      this.mascota(ctx, m, this.cx(m), 234 - Math.round((1 - k) * 20), t > 1 && t < 4 ? 'reading' : 'idle');
     });
     if (t > 1.5) {
-      text(ctx, 'CADA RESPUESTA DICE', LW / 2, 140, P.parchment, { outline: P.night, align: 'center' });
-      text(ctx, 'CUÁN SEGURA ESTÁ.', LW / 2, 152, P.parchment, { outline: P.night, align: 'center' });
-      text(ctx, 'LUEGO MIRAMOS', LW / 2, 170, P.parchment, { outline: P.night, align: 'center' });
-      text(ctx, 'SI ACERTÓ.', LW / 2, 182, P.parchment, { outline: P.night, align: 'center' });
+      text(ctx, 'CADA RESPUESTA DICE CUÁN SEGURA ESTÁ.', LW / 2, 120, P.parchment, { outline: P.night, align: 'center' });
+      text(ctx, 'LUEGO MIRAMOS SI ACERTÓ.', LW / 2, 132, P.parchment, { outline: P.night, align: 'center' });
+    }
+    if (t > 3 && this.modelos.includes('laya_td')) {
+      text(ctx, 'LAYA ESPECIALIZADA SE ENTRENÓ CON PREGUNTAS', LW / 2, 152, P.cyan, { outline: P.night, align: 'center' });
+      text(ctx, 'DE ESTE MISMO TIPO (NO CON ESTAS).', LW / 2, 164, P.cyan, { outline: P.night, align: 'center' });
     }
   }
 
   // 3-5. Una pantalla por nivel de seguridad
   private nivelPantalla(ctx: CanvasRenderingContext2D, t: number, n: number) {
     const N = NIVELES[n];
-    text(ctx, 'CUANDO DICEN ESTAR SEGURAS', LW / 2, 20, P.parchment, { scale: 1, outline: P.night, align: 'center' });
-    text(ctx, N.titulo, LW / 2, 32, P.yellow, { scale: 3, outline: P.night, align: 'center' });
+    text(ctx, 'CUANDO DICEN ESTAR SEGURAS', LW / 2, 18, P.parchment, { outline: P.night, align: 'center' });
+    text(ctx, N.titulo, LW / 2, 28, P.yellow, { scale: 3, outline: P.night, align: 'center' });
     const llenas = this.llenas(t);
-    MODELOS.forEach((m, lane) => {
-      const x0 = lane * 240;
-      const a = this.nivel[m][n];
-      const prometidas = Math.round(a.dice * 100);
-      const ok = Math.round(a.acierta * 100);
-      const prom = Math.min(prometidas, Math.floor(Math.max(0, t - T_PROMESA) / 0.012));
-      text(ctx, NOMBRE[m], x0 + 75, 64, COLOR[m], { scale: 2, outline: P.night, align: 'center' });
-      cuadricula(ctx, x0 + 30, 84, 8, prom, ok, llenas);
-      const state: MascotState = llenas > 0 && llenas < 100 ? 'reading' : llenas >= 100 && t < T_LLENADO + 4.6 ? (Math.abs(a.dice - a.acierta) < 0.06 ? 'stamping' : 'error') : 'idle';
-      this.mascota(ctx, m, x0 + 172, 166, state, t - (T_LLENADO + 4));
-      if (t > T_PROMESA + 0.8) text(ctx, `PROMETE ${prometidas} DE 100`, x0 + 172, 64, P.yellow, { outline: P.night, align: 'center' });
-      if (llenas >= 100) {
-        const col = Math.abs(a.dice - a.acierta) < 0.06 ? P.green : P.red;
-        text(ctx, `ACIERTA ${ok} DE 100`, x0 + 120, 186, col, { scale: 2, outline: P.night, align: 'center' });
-        if (t > T_LLENADO + 4.4) text(ctx, veredicto(a), x0 + 120, 206, P.parchment, { outline: P.night, align: 'center' });
+    const tres = this.modelos.length === 3;
+    this.modelos.forEach((m) => {
+      const cx = this.cx(m);
+      const a = this.nivel[m]![n];
+      const prometidas = de100(a.dice);
+      const ok = de100(a.acierta);
+      // Con dos modelos, personaje al lado de la cuadrícula; con tres no cabe y va sin él
+      const gx = tres ? cx - 44 : cx - 90;
+      this.nombre(ctx, m, tres ? cx : cx - 45, 54);
+      if (!a.n) {
+        bloque(ctx, 'NUNCA DICE ESTAR TAN SEGURA', 130, P.stoneLight, 1, 110, tres ? cx : cx - 45);
+        return;
       }
-      text(ctx, `(${miles(a.n)} RESPUESTAS ASÍ)`, x0 + 120, 220, P.stone, { outline: P.night, align: 'center' });
+      const prom = Math.min(prometidas, Math.floor(Math.max(0, t - T_PROMESA) / 0.012));
+      cuadricula(ctx, gx, 94, 8, prom, ok, llenas);
+      if (!tres) {
+        const state: MascotState = llenas > 0 && llenas < 100 ? 'reading' : llenas >= 100 && t < T_LLENADO + 4.6 ? (cumple(a) ? 'stamping' : 'error') : 'idle';
+        this.mascota(ctx, m, cx + 50, 172, state, t - (T_LLENADO + 4));
+      }
+      if (t > T_PROMESA + 0.8) text(ctx, `PROMETE ${prometidas} DE 100`, tres ? cx : cx + 50, tres ? 83 : 70, P.yellow, { outline: P.night, align: 'center' });
+      if (llenas >= 100) {
+        const col = colorAcierto(a);
+        text(ctx, 'ACIERTA', cx, 198, P.parchment, { outline: P.night, align: 'center' });
+        text(ctx, `${ok} DE 100`, cx, 208, col, { scale: 2, outline: P.night, align: 'center' });
+        if (t > T_LLENADO + 4.4) text(ctx, veredicto(a), cx, 226, P.parchment, { outline: P.night, align: 'center' });
+      }
+      text(ctx, `(${miles(a.n)} RESPUESTAS)`, cx, 188, P.stone, { outline: P.night, align: 'center' });
     });
   }
 
-  // 6. ¿Se puede arreglar? Laya corregida promete menos, pero acierta lo mismo
+  // 6. ¿Se puede arreglar? Cada Laya, antes y corregida: promete menos, ¿acierta más?
   private arreglo(ctx: CanvasRenderingContext2D, t: number) {
-    bloque(ctx, '¿SE PUEDE ARREGLAR A LAYA?', 20, P.parchment, 2);
-    text(ctx, 'SÍ: SE LE ENSEÑA A NO PROMETER DE MÁS (CON 200 PREGUNTAS APARTE).', LW / 2, 40, P.stoneLight, { outline: P.night, align: 'center' });
-    const A = this.media.laya.de_serie;
-    const B = this.media.laya.reajustado;
-    const pa = Math.round(A.dice * 100);
-    const pb = Math.round(B.dice * 100);
-    // Antes: ya conocida, llena desde el principio
-    text(ctx, 'ANTES', 115, 58, P.blue, { scale: 2, outline: P.night, align: 'center' });
-    cuadricula(ctx, 70, 80, 8, pa, Math.round(A.acierta * 100), 100);
-    text(ctx, `PROMETE ${pa} · ACIERTA ${Math.round(A.acierta * 100)}`, 115, 178, P.parchment, { outline: P.night, align: 'center' });
-    // Corregida: la promesa encoge de lo de antes a lo de ahora y luego se llena
+    const varias = this.lays.length > 1;
+    bloque(ctx, varias ? '¿SE PUEDE ARREGLAR A LAYA?' : '¿SE PUEDE ARREGLAR A LAYA?', 20, P.parchment, 2);
+    text(ctx, varias ? 'SE AJUSTA CUÁNTO PROMETE, CON 200 PREGUNTAS APARTE.' : 'SÍ: SE LE ENSEÑA A NO PROMETER DE MÁS (CON 200 PREGUNTAS APARTE).', LW / 2, 40, P.stoneLight, { outline: P.night, align: 'center' });
     const mix = easeInOut(Math.min(1, Math.max(0, (t - 2) / 2)));
-    const prom = Math.round(pa + (pb - pa) * mix);
-    text(ctx, 'CORREGIDA', 365, 58, P.blue, { scale: 2, outline: P.night, align: 'center' });
-    cuadricula(ctx, 320, 80, 8, prom, Math.round(B.acierta * 100), this.llenas(t, 4.5));
-    if (t > 4.2) text(ctx, `PROMETE ${pb} · ACIERTA ${Math.round(B.acierta * 100)}`, 365, 178, P.parchment, { outline: P.night, align: 'center' });
-    if (t > 2) text(ctx, '→', LW / 2, 120, P.yellow, { scale: 3, outline: P.night, align: 'center' });
-    text(ctx, '(DE MEDIA, EN LAS 2.000 PREGUNTAS)', LW / 2, 192, P.stone, { outline: P.night, align: 'center' });
+    const celda = varias ? 6 : 8;
+    const lado = (celda + 1) * 10;
+    const filaH = lado + 14;
+    this.lays.forEach((m, i) => {
+      const A = this.media[m]!.de_serie;
+      const B = this.media[m]!.reajustado;
+      const pa = de100(A.dice);
+      const pb = de100(B.dice);
+      const y = 56 + i * filaH;
+      const x1 = varias ? 130 : 70;
+      const x2 = varias ? 250 : 320;
+      if (varias) this.nombre(ctx, m, 60, y + lado / 2 - 12, 2);
+      else {
+        text(ctx, 'ANTES', x1 + lado / 2, y, COLOR[m], { scale: 2, outline: P.night, align: 'center' });
+        text(ctx, 'CORREGIDA', x2 + lado / 2, y, COLOR[m], { scale: 2, outline: P.night, align: 'center' });
+      }
+      const gy = varias ? y : y + 22;
+      cuadricula(ctx, x1, gy, celda, pa, de100(A.acierta), 100);
+      cuadricula(ctx, x2, gy, celda, Math.round(pa + (pb - pa) * mix), de100(B.acierta), this.llenas(t, 4.5));
+      if (t > 2) text(ctx, '→', (x1 + lado + x2) / 2, gy + lado / 2 - 10, P.yellow, { scale: 3, outline: P.night, align: 'center' });
+      if (varias) {
+        const tx = x2 + lado + 14;
+        text(ctx, `PROMETE ${pa} → ${t > 4 ? pb : '…'}`, tx, gy + 16, P.yellow, { outline: P.night });
+        text(ctx, `ACIERTA ${de100(A.acierta)} → ${t > 8.5 ? de100(B.acierta) : '…'}`, tx, gy + 30, P.parchment, { outline: P.night });
+        if (t > 8.6) {
+          const gap = Math.abs(B.dice - B.acierta);
+          text(ctx, gap < 0.05 ? 'AHORA CUMPLE' : gap < 0.1 ? 'AHORA CASI CUMPLE' : 'SIGUE SIN CUMPLIR', tx, gy + 46, gap < 0.1 ? P.green : P.red, { outline: P.night });
+        }
+      } else {
+        text(ctx, `PROMETE ${pa} · ACIERTA ${de100(A.acierta)}`, x1 + lado / 2, gy + lado + 8, P.parchment, { outline: P.night, align: 'center' });
+        if (t > 4.2) text(ctx, `PROMETE ${pb} · ACIERTA ${de100(B.acierta)}`, x2 + lado / 2, gy + lado + 8, P.parchment, { outline: P.night, align: 'center' });
+      }
+    });
     if (t > 8.6) {
-      text(ctx, 'YA NO PROMETE DE MÁS...', LW / 2, 204, P.parchment, { outline: P.night, align: 'center' });
-      text(ctx, `PERO SIGUE ACERTANDO ${Math.round(B.acierta * 100)} DE 100`, LW / 2, 216, P.yellow, { scale: 2, outline: P.night, align: 'center' });
+      text(ctx, 'CORREGIR CAMBIA LO QUE PROMETE...', LW / 2, 214, P.parchment, { outline: P.night, align: 'center' });
+      text(ctx, 'LO QUE ACIERTA SIGUE IGUAL', LW / 2, 224, P.yellow, { scale: 1, outline: P.night, align: 'center' });
     }
   }
 
@@ -414,51 +463,66 @@ export class Escena {
     if (t > 7) bloque(ctx, 'LA NOTA CAMBIA SEGÚN CÓMO SE CALCULE. LAS CASILLAS, NO.', 194, P.yellow, 2, LW - 40);
   }
 
-  // 8. Las seis cuadrículas juntas
+  // 8. Todas las cuadrículas juntas: filas = niveles, columnas = modelos
   private repaso(ctx: CanvasRenderingContext2D, t: number) {
     text(ctx, 'LAS TRES PRUEBAS JUNTAS', LW / 2, 20, P.parchment, { scale: 2, outline: P.night, align: 'center' });
-    const colX: Record<Modelo, number> = { laya: 168, jev: 318 };
-    MODELOS.forEach((m) => text(ctx, NOMBRE[m], colX[m] + 48, 40, COLOR[m], { scale: 1, outline: P.night, align: 'center' }));
-    NIVELES.forEach((nv, i) => {
-      const y = 54 + i * 58;
-      if (t < 0.3 + i * 0.4) return;
-      text(ctx, 'DICE', 104, y + 14, P.stoneLight, { outline: P.night, align: 'right' });
-      text(ctx, nv.corto, 104, y + 26, P.yellow, { outline: P.night, align: 'right' });
-      MODELOS.forEach((m) => {
-        const a = this.nivel[m][i];
-        const ok = Math.round(a.acierta * 100);
-        cuadricula(ctx, colX[m], y, 4, Math.round(a.dice * 100), ok, 100);
-        const col = Math.abs(a.dice - a.acierta) < 0.06 ? P.green : P.red;
-        text(ctx, `ACIERTA`, colX[m] + 56, y + 14, P.parchment, { outline: P.night });
-        text(ctx, `${ok} DE 100`, colX[m] + 56, y + 26, col, { outline: P.night });
+    const n = this.modelos.length;
+    const ancho = n === 3 ? 112 : 150;
+    const x0 = n === 3 ? 128 : 168;
+    const colX = (i: number) => x0 + i * ancho;
+    this.modelos.forEach((m, i) => {
+      text(ctx, n === 3 && m !== 'jev' ? `${NOMBRE[m]} ${m === 'laya' ? 'GEN.' : 'ESPEC.'}` : NOMBRE[m], colX(i) + 25, 40, COLOR[m], { outline: P.night, align: 'center' });
+    });
+    NIVELES.forEach((nv, j) => {
+      const y = 52 + j * 54;
+      if (t < 0.3 + j * 0.4) return;
+      text(ctx, 'DICE', x0 - 8, y + 14, P.stoneLight, { outline: P.night, align: 'right' });
+      text(ctx, nv.corto, x0 - 8, y + 26, P.yellow, { outline: P.night, align: 'right' });
+      this.modelos.forEach((m, i) => {
+        const a = this.nivel[m]![j];
+        if (!a.n) {
+          text(ctx, 'NUNCA', colX(i) + 25, y + 14, P.stone, { outline: P.night, align: 'center' });
+          text(ctx, 'TAN SEGURA', colX(i) + 25, y + 26, P.stone, { outline: P.night, align: 'center' });
+          return;
+        }
+        const ok = de100(a.acierta);
+        cuadricula(ctx, colX(i), y, 4, de100(a.dice), ok, 100);
+        text(ctx, 'ACIERTA', colX(i) + 54, y + 14, P.parchment, { outline: P.night });
+        text(ctx, `${ok} DE 100`, colX(i) + 54, y + 26, colorAcierto(a), { outline: P.night });
       });
     });
-    if (t > 2) bloque(ctx, 'JEV: LO VERDE SIGUE A LO QUE PROMETE. LAYA: ACIERTA PARECIDO DIGA LO QUE DIGA.', 226, P.yellow, 1, LW - 40);
+    if (t > 2) {
+      const lineas = ['JEV: LO VERDE SIGUE A LO QUE PROMETE.'];
+      lineas.push(this.modelos.includes('laya_td')
+        ? 'LAYA GENERAL ACIERTA MENOS DE LO QUE PROMETE. LA ESPECIALIZADA, MÁS.'
+        : 'LAYA: ACIERTA PARECIDO DIGA LO QUE DIGA.');
+      lineas.forEach((l, i) => text(ctx, l, LW / 2, 214 + i * 10, P.yellow, { outline: P.night, align: 'center' }));
+    }
   }
 
-  // 9. Conclusión
+  // 9. Conclusión: una placa por modelo, con frases sacadas de los datos
   private final(ctx: CanvasRenderingContext2D, t: number) {
-    const L = this.nivel.laya[0];
-    const J = this.nivel.jev[0];
-    const ML = this.media.laya.reajustado;
-    bloque(ctx, 'EN RESUMEN', 22, P.parchment, 2);
-    const filas: [Modelo, string, string][] = [
-      ['jev', 'JEV CUMPLE LO QUE PROMETE', `CUANDO DICE ESTAR SEGURO (80 % O MÁS), ACIERTA ${Math.round(J.acierta * 100)} DE CADA 100.`],
-      ['laya', 'LAYA PROMETE DE MÁS', `CUANDO DICE ESTAR SEGURA, ACIERTA ${Math.round(L.acierta * 100)} DE CADA 100. CORREGIDA YA NO PROMETE DE MÁS, PERO SIGUE ACERTANDO ${Math.round(ML.acierta * 100)} DE CADA 100.`],
-    ];
-    filas.forEach(([m, titulo, sub], i) => {
+    bloque(ctx, 'EN RESUMEN', 20, P.parchment, 2);
+    const n = this.modelos.length;
+    const h = n === 3 ? 44 : 50;
+    this.modelos.forEach((m, i) => {
       if (t < 0.4 + i * 0.6) return;
-      const y = 46 + i * 56;
-      plate(ctx, 50, y, 380, 48, P.night, COLOR[m]);
-      text(ctx, titulo, 62, y + 7, COLOR[m], { scale: 2 });
-      wrap(sub, 356).forEach((l, j) => text(ctx, l, 62, y + 26 + j * 10, P.parchment));
+      const alto = this.nivel[m]![0];
+      const med = this.media[m]!;
+      const titulo = `${NOMBRE[m]}${n === 3 || m !== 'jev' ? ' ' + APELLIDO[m] : ''}: ${alto.n ? (cumple(alto) ? 'CUMPLE LO QUE PROMETE' : alto.dice > alto.acierta ? 'PROMETE DE MÁS' : 'PROMETE DE MENOS') : 'NUNCA SE CREE MUY SEGURA'}`;
+      let sub = alto.n ? `CUANDO DICE ESTAR SEGURA (80 % O MÁS), ACIERTA ${de100(alto.acierta)} DE 100. ` : '';
+      sub += `EN TOTAL ACIERTA EL ${pct(med.de_serie.acierta)}.`;
+      if (m !== 'jev') sub += ` CORREGIDA PASA DE PROMETER ${pct(med.de_serie.dice)} A ${pct(med.reajustado.dice)}.`;
+      const y = 40 + i * (h + 6);
+      plate(ctx, 30, y, 420, h, P.night, COLOR[m]);
+      text(ctx, titulo, 40, y + 6, COLOR[m], { scale: 1 });
+      wrap(sub, 400).forEach((l, j) => text(ctx, l, 40, y + 20 + j * 10, P.parchment));
     });
-    if (t > 2) bloque(ctx, 'ANTES DE FIARTE DE UNA NOTA DE CALIBRACIÓN, PREGUNTA CUÁNTO ACIERTA Y CÓMO SE HA CALCULADO.', 166, P.yellow, 1, LW - 80);
+    const yb = 40 + n * (h + 6) + 4;
+    if (t > 2) bloque(ctx, 'ANTES DE FIARTE DE UNA NOTA DE CALIBRACIÓN, PREGUNTA CUÁNTO ACIERTA Y CÓMO SE HA CALCULADO.', yb, P.yellow, 1, LW - 80);
     const r = this.d.resultados;
     if (t > 3)
-      wrap(`DATOS: TYPED-DECISIONS, ${r.test_casos} CASOS, ${miles(r.modelos.jev.estados.de_serie!.decisiones)} PREGUNTAS. JEV 1.13.0 POR API, LAYA EN LOCAL.`, LW - 60).forEach((l, i) =>
-        text(ctx, l, LW / 2, 196 + i * 10, P.stone, { outline: P.night, align: 'center' }),
-      );
-    if (this.d.simulado) tag(ctx, 'SIMULADO', LW / 2 - measure('SIMULADO') / 2, 222);
+      text(ctx, `DATOS: TYPED-DECISIONS, ${r.test_casos} CASOS, ${miles(r.modelos.jev.estados.de_serie!.decisiones)} PREGUNTAS.`, LW / 2, 224, P.stone, { outline: P.night, align: 'center' });
+    
   }
 }

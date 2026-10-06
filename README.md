@@ -1,32 +1,35 @@
 # Laya y Jev: si dice 90 %, ¿acierta 9 de cada 10?
 
-Laya publica un error de calibración (ECE) de 0,466 de fábrica que baja a 0,081 tras reajustar la temperatura. De Jev circulan dos cifras que no coinciden: 0,246 (comparativa de Laya) y 0,144 (tabla de typed-decisions). Este proyecto mide los dos con las mismas preguntas, lo cuenta con cuadrículas de 100 casillas en una escena pixel art y graba el vídeo.
+Laya publica un error de calibración (ECE) de 0,466 de fábrica que baja a 0,081 tras reajustar la temperatura. De Jev circulan dos cifras que no coinciden: 0,246 (comparativa de Laya) y 0,144 (tabla de typed-decisions). Este proyecto mide a Jev y a dos versiones de Laya (la general y la especializada en estas preguntas) con las mismas preguntas, lo cuenta con cuadrículas de 100 casillas en una escena pixel art y graba el vídeo.
 
 ## Qué se mide
 
 - **Conjunto**: [typed-decisions](https://huggingface.co/datasets/LocalLLaMA/typed-decisions), split `test`: 400 casos, 5 preguntas cada uno (sí/no, elección y escala), 2.000 decisiones. Acierto = coincide con la etiqueta del oro.
 - **Misma petición a los dos**: `state` + las cinco `questions` del caso, tal cual vienen en el conjunto.
   - Jev: API de TypeSafe, `jev-latest` (respondió `jev-1.13.0`).
-  - Laya: `convaiinnovations/laya` con `laya` 0.3.28, en local por CPU.
+  - Laya general: [`convaiinnovations/laya`](https://huggingface.co/convaiinnovations/laya) con `laya` 0.3.28, en local por CPU.
+  - Laya especializada: [`convaiinnovations/laya-typed-decisions`](https://huggingface.co/convaiinnovations/laya-typed-decisions), ajustada con el split `train` de typed-decisions (no con `test`), en local por CPU.
 - **Confianza** = probabilidad de la opción elegida. **ECE** = 10 tramos de igual anchura.
 - **Reajuste**: una temperatura por tipo de pregunta y nº de opciones, ajustada en 200 casos de `train` (50 por flujo), nunca vistos en la medida.
-- **Laya en tres estados**: sin temperatura, tal como sale (con las temperaturas que trae el modelo) y reajustada.
+- **Cada Laya en tres estados**: sin temperatura, tal como sale (con las temperaturas que trae el modelo) y reajustada.
 
 ## Resultados (`datos/resultados.json`)
 
-| | Laya | Jev |
-|---|---|---|
-| ECE sin temperatura | 0,266 | - |
-| ECE tal como sale | 0,175 (IC 95 %: 0,152 a 0,199) | 0,036 (0,023 a 0,054) |
-| ECE reajustado | 0,035 | 0,032 |
-| Acierta | 36 % | 73 % |
-| Dice de media (tal como sale) | 54 % | 75 % |
-| Dice de media (reajustado) | 39 % | 74 % |
-| Brier (tal como sale) | 0,750 | 0,366 |
+| | Laya general | Laya especializada | Jev |
+|---|---|---|---|
+| ECE sin temperatura | 0,266 | 0,128 | - |
+| ECE tal como sale | 0,175 (IC 95 %: 0,152 a 0,199) | 0,213 (0,194 a 0,232) | 0,036 (0,023 a 0,054) |
+| ECE reajustado | 0,035 | 0,061 | 0,032 |
+| Acierta | 36 % | 77 % | 73 % |
+| Dice de media (tal como sale / reajustado) | 54 % / 39 % | 55 % / 83 % | 75 % / 74 % |
+| Cuando dice 80 % o más, acierta | 41 de 100 (116 resp.) | 100 de 100 (206 resp.) | 88 de 100 (901 resp.) |
+| Brier (tal como sale) | 0,750 | 0,400 | 0,366 |
+
+Laya general promete de más; Laya especializada acierta más que nadie pero promete de menos (sus temperaturas de serie la suavizan de más: sin ellas su ECE es 0,128); Jev cumple. La exactitud (0,766) y el ECE tal como sale (0,213) de Laya especializada coinciden con los de su ficha, igual que el 0,175 de Laya general.
 
 La misma tanda de respuestas de Jev, calculada de 7 formas que se usan en la práctica, da un ECE de 0,021 a 0,169. Ninguna reproduce a la vez las tres cifras de la tabla de typed-decisions (uniforme, prior y Jev); el script con el que se calcularon no está publicado.
 
-Limitaciones: un solo conjunto, sintético, cuyo oro sale de un modelo de unos 4B de parámetros. Laya base no está entrenada para este conjunto (su ficha la presenta como base para especializar; existe `laya-typed-decisions`, ajustada en `train`, que no se ha medido aquí). La latencia no es comparable: Laya corre en la CPU de un portátil y Jev por API.
+Limitaciones: un solo conjunto, sintético, cuyo oro sale de un modelo de unos 4B de parámetros. Laya general y Jev no están entrenados para este conjunto; Laya especializada sí (con `train`), así que no compite en las mismas condiciones: la ficha de typed-decisions separa los dos tipos de modelo. La latencia no es comparable: Laya corre en la CPU de un portátil y Jev por API.
 
 ## Cómo reproducirlo
 
@@ -37,6 +40,7 @@ cp .env.example .env          # TYPESAFE_API_KEY o AI_GATEWAY_API_KEY
 .py/Scripts/python medir/conjunto.py          # datos/test.jsonl y datos/ajuste.jsonl
 .py/Scripts/python medir/preguntar.py jev     # reanudable
 .py/Scripts/python medir/preguntar.py laya    # ~8 s por caso en CPU
+.py/Scripts/python medir/preguntar.py laya-td # Laya especializada
 .py/Scripts/python medir/analizar.py          # datos/resultados.json y src/data/medidas.json
 .py/Scripts/python medir/analizar.py --prueba # comprueba el cálculo del ECE
 ```

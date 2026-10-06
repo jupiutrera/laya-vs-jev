@@ -1,7 +1,8 @@
 // Datos de la escena: los genera medir/analizar.py en src/data/medidas.json.
 // Si el archivo no existe todavía, o con ?mock en la URL, se usan datos simulados y la escena lo dice.
 
-export type Modelo = 'laya' | 'jev';
+/** laya = convaiinnovations/laya (general); laya_td = laya-typed-decisions (especializada). */
+export type Modelo = 'laya' | 'laya_td' | 'jev';
 export type Estado = 'crudo' | 'de_serie' | 'reajustado';
 
 export interface Tramo {
@@ -50,7 +51,7 @@ export interface Resultados {
   conjunto: string;
   test_casos: number;
   ajuste_casos: number;
-  modelos: Record<Modelo, MedidaModelo>;
+  modelos: Record<'laya' | 'jev', MedidaModelo> & { laya_td?: MedidaModelo };
   publicado: {
     laya: { ece_sin_ajustar: number; ece_reajustado: number };
     jev: { ece: number; fuente: string }[];
@@ -66,7 +67,7 @@ export interface Secuencia {
 export interface Datos {
   simulado: boolean;
   resultados: Resultados;
-  secuencias: Record<Modelo, Partial<Record<Estado, Secuencia>>>;
+  secuencias: Partial<Record<Modelo, Partial<Record<Estado, Secuencia>>>>;
 }
 
 const archivos = import.meta.glob<{ default: Omit<Datos, 'simulado'> }>('./data/medidas.json', { eager: true });
@@ -135,6 +136,11 @@ function simular(): Datos {
       de_serie: secuenciaSimulada(2, 2000, 0.3, 3),
       reajustado: secuenciaSimulada(3, 2000, 0.05, 1.5),
     },
+    laya_td: {
+      crudo: secuenciaSimulada(6, 2000, 0.25, 4),
+      de_serie: secuenciaSimulada(7, 2000, 0.15, 5),
+      reajustado: secuenciaSimulada(8, 2000, 0.03, 3),
+    },
     jev: {
       de_serie: secuenciaSimulada(4, 2000, 0.2, 6),
       reajustado: secuenciaSimulada(5, 2000, 0.04, 2),
@@ -157,7 +163,7 @@ function simular(): Datos {
     secuencias: sec,
     resultados: {
       conjunto: 'SIMULADO', test_casos: 400, ajuste_casos: 200,
-      modelos: { laya: modelo('laya'), jev: modelo('jev') },
+      modelos: { laya: modelo('laya'), laya_td: modelo('laya_td'), jev: modelo('jev') },
       publicado: { laya: { ece_sin_ajustar: 0.466, ece_reajustado: 0.081 }, jev: [{ ece: 0.246, fuente: '' }, { ece: 0.144, fuente: '' }] },
     },
   };
