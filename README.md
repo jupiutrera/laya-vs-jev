@@ -1,69 +1,146 @@
-# Laya y Jev: si dice 90 %, ¿acierta 9 de cada 10?
+# laya-vs-jev: a calibration eval for typed-decision models
 
-Laya publica un error de calibración (ECE) de 0,466 de fábrica que baja a 0,081 tras reajustar la temperatura. De Jev circulan dos cifras que no coinciden: 0,246 (comparativa de Laya) y 0,144 (tabla de typed-decisions). Este proyecto mide a Jev y a dos versiones de Laya (la general y la especializada en estas preguntas) con las mismas preguntas, lo cuenta con cuadrículas de 100 casillas en una escena pixel art y graba el vídeo.
+[![CI](https://github.com/jupiutrera/laya-vs-jev/actions/workflows/ci.yml/badge.svg)](https://github.com/jupiutrera/laya-vs-jev/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Qué se mide
+When a model says it is 90 % sure, is it right 9 times out of 10? This repository measures that for three models on the same 2,000 decisions, shows how much a held-out temperature fit repairs, and shows that the usual summary number (ECE) moves by a factor of eight depending on how it is computed.
 
-- **Conjunto**: [typed-decisions](https://huggingface.co/datasets/LocalLLaMA/typed-decisions), split `test`: 400 casos, 5 preguntas cada uno (sí/no, elección y escala), 2.000 decisiones. Acierto = coincide con la etiqueta del oro.
-- **Misma petición a los dos**: `state` + las cinco `questions` del caso, tal cual vienen en el conjunto.
-  - Jev: API de TypeSafe, `jev-latest` (respondió `jev-1.13.0`).
-  - Laya general: [`convaiinnovations/laya`](https://huggingface.co/convaiinnovations/laya) con `laya` 0.3.28, en local por CPU.
-  - Laya especializada: [`convaiinnovations/laya-typed-decisions`](https://huggingface.co/convaiinnovations/laya-typed-decisions), ajustada con el split `train` de typed-decisions (no con `test`), en local por CPU.
-- **Confianza** = probabilidad de la opción elegida. **ECE** = 10 tramos de igual anchura.
-- **Reajuste**: una temperatura por tipo de pregunta y nº de opciones, ajustada en 200 casos de `train` (50 por flujo), nunca vistos en la medida.
-- **Cada Laya en tres estados**: sin temperatura, tal como sale (con las temperaturas que trae el modelo) y reajustada.
+[Versión en español](README.es.md)
 
-## Resultados (`datos/resultados.json`)
+## The problem
 
-| | Laya general | Laya especializada | Jev |
-|---|---|---|---|
-| ECE sin temperatura | 0,266 | 0,128 | - |
-| ECE tal como sale | 0,175 (IC 95 %: 0,152 a 0,199) | 0,213 (0,194 a 0,232) | 0,036 (0,023 a 0,054) |
-| ECE reajustado | 0,035 | 0,061 | 0,032 |
-| Acierta | 36 % | 77 % | 73 % |
-| Dice de media (tal como sale / reajustado) | 54 % / 39 % | 55 % / 83 % | 75 % / 74 % |
-| Cuando dice 80 % o más, acierta | 41 de 100 (116 resp.) | 100 de 100 (206 resp.) | 88 de 100 (901 resp.) |
-| Brier (tal como sale) | 0,750 | 0,400 | 0,366 |
+A model that returns a decision with a probability is only useful in an automated workflow if the probability means something: a threshold such as "act without review above 80 %" assumes it does.
 
-Laya general promete de más; Laya especializada acierta más que nadie pero promete de menos (sus temperaturas de serie la suavizan de más: sin ellas su ECE es 0,128); Jev cumple. La exactitud (0,766) y el ECE tal como sale (0,213) de Laya especializada coinciden con los de su ficha, igual que el 0,175 de Laya general.
+The two models compared here publish calibration figures that cannot be compared with each other:
 
-La misma tanda de respuestas de Jev, calculada de 7 formas que se usan en la práctica, da un ECE de 0,021 a 0,169. Ninguna reproduce a la vez las tres cifras de la tabla de typed-decisions (uniforme, prior y Jev); el script con el que se calcularon no está publicado.
+- **Laya** reports an expected calibration error (ECE) of 0.466 out of the box and 0.081 after temperature scaling.
+- **Jev** has two published figures that disagree: 0.246 in a third-party comparison and 0.144 in the typed-decisions dataset card.
 
-Limitaciones: un solo conjunto, sintético, cuyo oro sale de un modelo de unos 4B de parámetros. Laya general y Jev no están entrenados para este conjunto; Laya especializada sí (con `train`), así que no compite en las mismas condiciones: la ficha de typed-decisions separa los dos tipos de modelo. La latencia no es comparable: Laya corre en la CPU de un portátil y Jev por API.
+None of those numbers come with the script that produced them. This eval puts the same questions to every model, stores every raw answer, and computes everything with one script.
 
-## Cómo reproducirlo
+## How it works
+
+```mermaid
+flowchart LR
+    DS[("typed-decisions<br/>Hugging Face")] --> C["conjunto.py<br/>build the splits"]
+    C --> T["test.jsonl<br/>400 cases, 2,000 decisions"]
+    C --> F["ajuste.jsonl<br/>200 train cases, for fitting"]
+    T --> P["preguntar.py<br/>same request to every model"]
+    F --> P
+    P -->|API| J["Jev"]
+    P -->|local, CPU| L["Laya<br/>general and fine-tuned"]
+    J --> R[("respuestas/<br/>raw answers, committed")]
+    L --> R
+    R --> A["analizar.py"]
+    A --> E["ECE, Brier, reliability curve,<br/>bootstrap 95 % interval"]
+    A --> S["temperature per question type,<br/>fitted on the 200 cases only"]
+    E --> O[("resultados.json")]
+    S --> O
+    O --> V["pixel-art scene and video"]
+```
+
+- **Dataset.** [typed-decisions](https://huggingface.co/datasets/LocalLLaMA/typed-decisions), `test` split: 400 cases from four workflows (agent trace observability, customer service, invoice processing, security incidents), five questions each (yes/no, choice and score). A decision is right when it matches the gold label.
+- **Same request for every model.** The case `state` and its five `questions`, exactly as they come in the dataset.
+  - Jev: TypeSafe API, `jev-latest`, which answered as `jev-1.13.0`.
+  - Laya, general: [`convaiinnovations/laya`](https://huggingface.co/convaiinnovations/laya) with `laya` 0.3.28, run locally on CPU.
+  - Laya, fine-tuned: [`convaiinnovations/laya-typed-decisions`](https://huggingface.co/convaiinnovations/laya-typed-decisions), trained on the `train` split of this dataset.
+- **Confidence** is the probability of the option the model chose. **ECE** uses 10 equal-width bins weighted by the number of decisions.
+- **Refit.** One temperature per question type and number of options, fitted by maximum likelihood on 200 cases of `train` (50 per workflow). A test checks that none of them is in the test split.
+- **Three states for each Laya.** Raw (its shipped temperatures undone), as shipped, and refitted. Jev exposes no temperature, so it has two: as served and refitted.
+- **Uncertainty.** 95 % intervals come from 1,000 bootstrap resamples of whole cases, because the five decisions of a case are not independent.
+
+The measurement code is in `medir/` and its identifiers and JSON keys are in Spanish; the tests in `tests/` are in English and start with a short glossary.
+
+## Run it
+
+Every raw model answer is committed, so the results can be recomputed with no API key and no model download. With [uv](https://docs.astral.sh/uv/) installed:
 
 ```bash
-# Python 3.12
+uv run medir/analizar.py
+```
+
+That rewrites `datos/resultados.json` from `datos/respuestas/`. It takes about a minute, almost all of it the bootstrap, and `git diff` shows nothing afterwards. CI runs the same check on every push.
+
+The tests:
+
+```bash
+uv run --with-requirements requirements-dev.txt pytest
+```
+
+To ask the models again (Python 3.12; Jev needs an API key, Laya takes about 8 s per case on a laptop CPU):
+
+```bash
 python -m venv .py && .py/Scripts/python -m pip install -r requirements.txt
-cp .env.example .env          # TYPESAFE_API_KEY o AI_GATEWAY_API_KEY
-.py/Scripts/python medir/conjunto.py          # datos/test.jsonl y datos/ajuste.jsonl
-.py/Scripts/python medir/preguntar.py jev     # reanudable
-.py/Scripts/python medir/preguntar.py laya    # ~8 s por caso en CPU
-.py/Scripts/python medir/preguntar.py laya-td # Laya especializada
-.py/Scripts/python medir/analizar.py          # datos/resultados.json y src/data/medidas.json
-.py/Scripts/python medir/analizar.py --prueba # comprueba el cálculo del ECE
+cp .env.example .env                          # TYPESAFE_API_KEY or AI_GATEWAY_API_KEY
+.py/Scripts/python medir/conjunto.py          # datos/test.jsonl and datos/ajuste.jsonl
+.py/Scripts/python medir/preguntar.py jev     # resumable
+.py/Scripts/python medir/preguntar.py laya
+.py/Scripts/python medir/preguntar.py laya-td # the fine-tuned Laya
 ```
 
-## La escena
+The scene that tells the result as a one-minute pixel-art video (text in Spanish):
 
 ```bash
-npm install
-npm run dev     # http://localhost:5173
+npm install && npm run dev                    # http://localhost:5173, space to start
 ```
 
-Espacio (o clic) arranca; R reinicia; A silencia. Dura algo más de un minuto.
+## Results
 
-Todo se cuenta con cuadrículas de 100 casillas: borde amarillo = lo que promete ("si dice 86 %, promete 86 de 100"), verde con marca = acierta, roja con cruz = falla. Una pantalla por nivel de seguridad declarada (80 % o más, 60-80 %, 40-60 %), el reajuste de Laya, las dos notas publicadas de Jev y un repaso con las seis cuadrículas.
+2,000 decisions per model, measured in October 2026. Full output in [`datos/resultados.json`](datos/resultados.json).
 
-- `?mock`: datos simulados (la escena muestra SIMULADO). Se usan también si falta `src/data/medidas.json`.
-- `?norec`: no graba.
-- `?t=30&freeze`: salta a un instante y lo congela (para revisar fotogramas).
+| | Laya, general | Laya, fine-tuned | Jev |
+|---|---|---|---|
+| Accuracy | 36.2 % | 76.6 % | 73.4 % |
+| ECE, raw | 0.266 | 0.128 | n/a |
+| **ECE, as shipped** | **0.175** (95 % CI 0.152 to 0.199) | **0.213** (0.194 to 0.232) | **0.036** (0.023 to 0.054) |
+| ECE, refitted on 200 held-out cases | 0.035 | 0.061 | 0.032 |
+| Mean confidence, as shipped | 53.6 % | 55.3 % | 75.2 % |
+| Accuracy when it says 80 % or more | 41.4 % (116 answers) | 99.5 % (206 answers) | 88.3 % (901 answers) |
+| Brier score, as shipped | 0.750 | 0.400 | 0.366 |
 
-Los scripts de npm llaman a `node node_modules/...` porque el `&` del nombre de la carpeta rompe los atajos `.cmd` de npm en Windows.
+What the table says:
 
-## Vídeo
+- **Laya, general, promises more than it delivers.** It is right 36 % of the time and says 54 % on average. When it says 80 % or more it is right 41 % of the time.
+- **Laya, fine-tuned, is the most accurate and promises less than it delivers.** Its shipped temperatures flatten it too much: without them its ECE is 0.128, with them 0.213. Underconfidence is still miscalibration, and it means a threshold set at 80 % sends answers to review that did not need it.
+- **Jev is calibrated as served**, and refitting barely moves it (0.036 to 0.032).
+- **A 200-case temperature fit removes most of the error** for the general Laya (0.175 to 0.035) without changing a single answer. It does nothing for accuracy.
 
-Cada pasada se graba sola y queda en `videos/` como MP4 H.264 1920x1080 a 60 fps, con el audio normalizado a -16 LUFS (hace falta ffmpeg en el PATH). Arranca con espacio o clic: con `?auto` el navegador no deja sonar el audio y el vídeo sale mudo.
+The accuracy (0.766) and as-shipped ECE (0.213) measured for the fine-tuned Laya match its model card, as does the 0.175 of the general one.
 
-Diseño de la escena: [DESIGN.md](DESIGN.md).
+### One set of answers, eight ECE values
+
+The same Jev answers, scored with eight recipes that are all used in practice:
+
+| How the ECE is computed | Jev, as served |
+|---|---|
+| Top option, 10 equal-width bins (the one used above) | 0.036 |
+| Top option, 15 equal-width bins | 0.044 |
+| Top option, 10 equal-mass bins | 0.035 |
+| The model's own `confidence` field instead of the top probability | 0.041 |
+| Every option of every question, not only the chosen one | 0.021 |
+| Against the dataset's soft gold probabilities instead of the hard label | 0.169 |
+| ECE per question, then averaged, 10 bins | 0.117 |
+| ECE per question, then averaged, 15 bins | 0.131 |
+
+From 0.021 to 0.169 without changing a single answer. None of the eight reproduces the three figures of the typed-decisions card at once (uniform, prior and Jev), and the script behind that card is not published.
+
+## Limitations
+
+- One dataset, and a synthetic one: its gold labels were produced by a model of about 4B parameters.
+- The models do not compete on equal terms. The general Laya and Jev were not trained on this dataset; the fine-tuned Laya was, on `train`. The dataset card separates the two kinds of model for that reason.
+- Latency is not comparable and is not reported as a result: Laya ran on a laptop CPU (median 9.6 s per case) and Jev through an API (median 1.2 s).
+- Jev rounds probabilities to two decimals. A reported 0.00 is read as "below 0.005" so that the log-likelihood used in the temperature fit stays finite.
+- One run per model. The intervals cover sampling of cases, not run-to-run variation of the models.
+- After the refit the general Laya never says 80 % or more, so its high-confidence row would be empty: calibration was bought by giving up confident answers, which says the model has little signal on this task.
+
+## What I learned
+
+- An ECE without its recipe is not a measurement. Binning, which probability counts as the confidence and whether the gold is hard or soft moved the same answers from 0.021 to 0.169. Comparing two published ECEs is only safe when both come from the same script.
+- Storing the raw answers is what makes the eval checkable. Every number here is recomputed in CI from committed files, so a change to the analysis that moves a result shows up as a diff.
+- Calibration and accuracy are separate properties and have to be reported together. A model can be well calibrated and wrong most of the time (the general Laya after refitting, 36 % accurate with an ECE of 0.035).
+- Shipped calibration parameters deserve the same suspicion as shipped weights. The fine-tuned Laya is better calibrated with its temperatures removed.
+- The unit of resampling is a design decision. The five questions of a case share one context, so the intervals resample whole cases; resampling single decisions would treat them as independent.
+
+## License
+
+[MIT](LICENSE). The dataset and the models belong to their authors; see the links above for their terms.

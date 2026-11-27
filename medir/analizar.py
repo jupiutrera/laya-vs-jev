@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["numpy>=2,<3", "scipy>=1.14,<2"]
+# ///
 """Curvas de fiabilidad y ECE de Jev, Laya y Laya especializada sobre typed-decisions (test), con el reajuste hecho en 'ajuste'.
 
 Definiciones (las mismas para todos los modelos):
@@ -154,13 +158,13 @@ def intervalo(filas: list, rng, veces=1000):
     return [round(float(np.percentile(vals, 2.5)), 4), round(float(np.percentile(vals, 97.5)), 4)]
 
 
-def resumen(filas: list, rng) -> dict:
+def resumen(filas: list, rng, veces: int = 1000) -> dict:
     conf, ok = conf_acierto(filas)
     brier = float(np.mean([((f["p"] - np.eye(len(f["p"]))[f["oro"]]) ** 2).sum() for f in filas]))
     return {
         "decisiones": len(filas), "exactitud": round(float(ok.mean()), 4), "confianza_media": round(float(conf.mean()), 4),
         "sobreconfianza": round(float(conf.mean() - ok.mean()), 4), "brier": round(brier, 4),
-        "ece": round(ece(conf, ok), 4), "ece_ic95": intervalo(filas, rng), "tramos": curva(conf, ok),
+        "ece": round(ece(conf, ok), 4), "ece_ic95": intervalo(filas, rng, veces), "tramos": curva(conf, ok),
     }
 
 
@@ -207,10 +211,8 @@ def prueba():
     print("dice 100 %, acierta 50 %  ECE =", round(ece(np.ones(10_000), rng.uniform(0, 1, 10_000) < 0.5), 4), "(esperado ~0,5)")
 
 
-def main():
-    if "--prueba" in sys.argv:
-        return prueba()
-    d = RAIZ / "datos"
+def calcular(d: Path = RAIZ / "datos", veces: int = 1000) -> tuple[dict, dict]:
+    """Devuelve (resultados, secuencias para la escena) a partir de los casos y las respuestas guardadas en d."""
     test, ajuste = leer(d / "test.jsonl"), leer(d / "ajuste.jsonl")
     rng = np.random.default_rng(SEMILLA)
     out = {"conjunto": "LocalLLaMA/typed-decisions", "test_casos": len(test), "ajuste_casos": len(ajuste),
@@ -241,11 +243,10 @@ def main():
             "version": rt[0]["modelo"] if rt else None, "casos_test": len(rt), "casos_ajuste": len(ra),
             "latencia_p50_ms_por_caso": round(float(np.median(ms)), 1) if len(ms) else None,
             "temperaturas_reajuste": temps,
-            "estados": {e: resumen(f, rng) for e, f in estados.items()},
+            "estados": {e: resumen(f, rng, veces) for e, f in estados.items()},
             "variantes_de_medida": {e: variantes(f) for e, f in estados.items()},
         }
         medidas[nombre] = {e: secuencia(f) for e, f in estados.items()}
-        print(f"{nombre}: " + "  ".join(f"{e} ECE {out['modelos'][nombre]['estados'][e]['ece']:.3f}" for e in estados))
 
     out["publicado"] = {
         "nota": "Cifras de terceros, no medidas aquí.",
@@ -256,6 +257,16 @@ def main():
             {"ece": 0.144, "fuente": "https://huggingface.co/datasets/LocalLLaMA/typed-decisions (Jev 1.13.0, test, zero-shot)"},
         ],
     }
+    return out, medidas
+
+
+def main():
+    if "--prueba" in sys.argv:
+        return prueba()
+    d = RAIZ / "datos"
+    out, medidas = calcular(d)
+    for nombre, m in out["modelos"].items():
+        print(f"{nombre}: " + "  ".join(f"{e} ECE {r['ece']:.3f}" for e, r in m["estados"].items()))
     (d / "resultados.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     (RAIZ / "src" / "data").mkdir(parents=True, exist_ok=True)
     (RAIZ / "src" / "data" / "medidas.json").write_text(json.dumps(
