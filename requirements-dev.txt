@@ -1,0 +1,5 @@
+# Enough to re-run the analysis and the tests from the answers stored in datos/.
+# Asking the models again needs requirements.txt.
+numpy>=2,<3
+scipy>=1.14,<2
+pytest>=8
